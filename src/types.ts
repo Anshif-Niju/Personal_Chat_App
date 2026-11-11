@@ -11,6 +11,7 @@ export interface PublicUser {
 
 export interface Me extends PublicUser {
   email: string | null;
+  isAdmin?: boolean;
 }
 
 export type Relationship = 'self' | 'friends' | 'outgoing' | 'incoming' | 'none' | 'blocked';

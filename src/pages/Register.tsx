@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
 
   const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: k === 'username' ? e.target.value.toLowerCase().replace(/^@/, '') : e.target.value }));
@@ -37,7 +38,11 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      await register({ ...form, email: form.email.trim() || undefined, displayName: form.displayName.trim() });
+      const res = await register({ ...form, email: form.email.trim() || undefined, displayName: form.displayName.trim() });
+      if (res.pending) {
+        setSent(res.message || 'Your request was sent. You can log in after an admin approves your account.');
+        setLoading(false);
+      }
     } catch (err) {
       setError(errorMessage(err));
       setLoading(false);
@@ -45,6 +50,17 @@ export default function RegisterPage() {
   };
 
   const err = (k: string) => (touched[k] ? errors[k] : undefined);
+
+  if (sent) {
+    return (
+      <AuthLayout title="Request sent" subtitle="">
+        <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{sent}</div>
+        <Link to="/login" className="btn-primary mt-6 w-full">
+          Back to log in
+        </Link>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout title="Create your account" subtitle="">

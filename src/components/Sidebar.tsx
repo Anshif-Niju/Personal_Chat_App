@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { MessageCirclePlus, MessagesSquare, Phone, Search, Settings, UserPlus, Users, UsersRound } from 'lucide-react';
+import { MessageCirclePlus, MessagesSquare, Phone, Search, Settings, Shield, UserPlus, Users, UsersRound } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useChat } from '../store/chat';
 import { useWallpaper, wallStyle } from '../store/wallpaper';
@@ -39,6 +39,11 @@ export default function Sidebar() {
         <button className="icon-btn" title="New group" onClick={() => setNewGroup(true)}>
           <UsersRound className="h-5 w-5" />
         </button>
+        {me.isAdmin && (
+          <Link to="/admin" className="icon-btn text-brand-600" title="Admin panel">
+            <Shield className="h-5 w-5" />
+          </Link>
+        )}
         <Link to="/settings" className="icon-btn" title="Settings">
           <Settings className="h-5 w-5" />
         </Link>

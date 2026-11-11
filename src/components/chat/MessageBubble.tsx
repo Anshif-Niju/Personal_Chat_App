@@ -49,6 +49,22 @@ interface Props extends BubbleActions {
   showSender: boolean;
   isPinned: boolean;
   highlighted: boolean;
+  /** Admin viewer: no reply/react/menu, just an optional delete button. */
+  readOnly?: boolean;
+  onAdminDelete?: (m: Message) => void;
+}
+
+function AdminTrash({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="icon-btn h-8 w-8 shrink-0 self-center bg-white/80 text-red-600 opacity-0 shadow-sm transition group-hover:opacity-100 dark:bg-slate-800/80"
+      title="Delete message"
+      onClick={onClick}
+      aria-label="Delete message"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  );
 }
 
 function StatusIcon({ status }: { status: ReturnType<typeof messageStatus> }) {
@@ -159,10 +175,11 @@ function MessageBubbleImpl(props: Props) {
 
   if (m.messageType === 'system') {
     return (
-      <div className="my-2 flex justify-center px-4">
+      <div className="group my-2 flex items-center justify-center gap-2 px-4">
         <span className="rounded-lg bg-white/90 px-3 py-1 text-center text-xs text-slate-600 shadow-sm dark:bg-slate-800/90 dark:text-slate-300">
           {systemText(m, conv, meId)}
         </span>
+        {props.onAdminDelete && <AdminTrash onClick={() => props.onAdminDelete!(m)} />}
       </div>
     );
   }
@@ -171,7 +188,8 @@ function MessageBubbleImpl(props: Props) {
     const missed = !mine && (m.call?.status === 'missed' || m.call?.status === 'busy');
     const Icon = missed ? PhoneMissed : m.call?.callType === 'video' ? Video : Phone;
     return (
-      <div className={clsx('my-1 flex px-3 sm:px-6', mine ? 'justify-end' : 'justify-start')}>
+      <div className={clsx('group my-1 flex gap-2 px-3 sm:px-6', mine ? 'flex-row-reverse justify-start' : 'justify-start')}>
+        {props.onAdminDelete && <AdminTrash onClick={() => props.onAdminDelete!(m)} />}
         <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-sm dark:bg-slate-800">
           <span className={clsx('flex h-9 w-9 items-center justify-center rounded-full', missed ? 'bg-red-100 text-red-600 dark:bg-red-950' : 'bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-300')}>
             <Icon className="h-4 w-4" />
@@ -195,6 +213,7 @@ function MessageBubbleImpl(props: Props) {
   const status = mine ? messageStatus(m, conv, meId) : null;
   const canEdit = mine && !m.isDeleted && !m.localStatus && !m.forwarded && ['text', 'image', 'video', 'file'].includes(m.messageType);
   const persisted = !m.localStatus && !m.isDeleted;
+  const interactive = persisted && !props.readOnly;
   const bigEmoji = !m.isDeleted && !m.attachment && !m.forwarded ? emojiOnlyCount(m.content) : 0;
   const inlineMeta = !m.isDeleted && !!m.content && !m.attachment && !bigEmoji;
   const meta = (
@@ -226,7 +245,7 @@ function MessageBubbleImpl(props: Props) {
             mine ? 'rounded-br-md bg-brand-100 text-slate-900 dark:bg-brand-800 dark:text-white' : 'rounded-bl-md bg-white dark:bg-slate-800',
             m.isDeleted && 'italic opacity-80',
           )}
-          onDoubleClick={() => persisted && props.onReply(m)}
+          onDoubleClick={() => interactive && props.onReply(m)}
         >
           {conv.type === 'group' && !mine && showSender && (
             <div className="mb-0.5 text-xs font-semibold text-brand-700 dark:text-brand-300">{m.sender?.displayName ?? 'Deleted account'}</div>
@@ -278,7 +297,7 @@ function MessageBubbleImpl(props: Props) {
 
           {!inlineMeta && <div className="mt-0.5">{meta}</div>}
 
-          {persisted && (
+          {interactive && (
             <button
               className={clsx(
                 'absolute right-1 top-1 hidden rounded-full bg-inherit p-0.5 text-slate-500 group-hover:block',
@@ -316,7 +335,13 @@ function MessageBubbleImpl(props: Props) {
           </button>
         )}
 
-        {persisted && (
+        {props.onAdminDelete && (
+          <div className={clsx('absolute top-1/2 hidden -translate-y-1/2 group-hover:flex', mine ? '-left-10' : '-right-10')}>
+            <AdminTrash onClick={() => props.onAdminDelete!(m)} />
+          </div>
+        )}
+
+        {interactive && (
           <div className={clsx('absolute top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex', mine ? '-left-20' : '-right-20')}>
             <button className="icon-btn h-8 w-8 bg-white/80 shadow-sm dark:bg-slate-800/80" onClick={() => setPicker((v) => !v)} aria-label="React">
               <Smile className="h-4 w-4" />

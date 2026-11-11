@@ -10,7 +10,7 @@ interface AuthState {
   user: Me | null;
   bootstrap: () => Promise<void>;
   login: (identifier: string, password: string) => Promise<void>;
-  register: (data: { username: string; email?: string; password: string; confirmPassword: string; displayName: string }) => Promise<void>;
+  register: (data: { username: string; email?: string; password: string; confirmPassword: string; displayName: string }) => Promise<{ pending: boolean; message: string }>;
   logout: () => Promise<void>;
   setUser: (u: Me) => void;
   /** Local sign-out without calling the server (session already revoked). */
@@ -40,8 +40,11 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   register: async (body) => {
     const { data } = await api.post('/auth/register', body);
+    // New accounts wait for an admin to approve them, so there is no session yet.
+    if (data.pending) return { pending: true, message: String(data.message ?? '') };
     setAccessToken(data.accessToken);
     set({ user: data.user, status: 'authenticated' });
+    return { pending: false, message: '' };
   },
 
   logout: async () => {

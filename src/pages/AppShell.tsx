@@ -12,6 +12,7 @@ import ChatView from '../components/chat/ChatView';
 import CallOverlay from '../components/CallOverlay';
 import GroupCallOverlay from '../components/GroupCallOverlay';
 import SettingsPage from './Settings';
+import AdminPage from './Admin';
 
 function Welcome() {
   return (
@@ -60,6 +61,7 @@ export default function AppShell() {
         <Routes>
           <Route path="/chat/:id" element={<ChatView />} />
           <Route path="/settings/*" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Welcome />} />
         </Routes>
       </main>
