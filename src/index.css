@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-brand-50: #effcf9;
+  --color-brand-100: #c9f5ec;
+  --color-brand-200: #94eadb;
+  --color-brand-300: #57d8c5;
+  --color-brand-400: #27bdab;
+  --color-brand-500: #0fa192;
+  --color-brand-600: #0a8177;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #0f524d;
+  --color-brand-900: #113f3b;
+  --animate-pop: pop 160ms ease-out;
+  --animate-fade: fade 200ms ease-out;
+  --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
+}
+
+@keyframes pop {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgb(15 161 146 / 0.55); }
+  80%, 100% { box-shadow: 0 0 0 28px rgb(15 161 146 / 0); }
+}
+
+html, body, #root { height: 100%; }
+body {
+  @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chat-wallpaper {
+  background-color: #efeae2;
+  background-image: radial-gradient(rgb(15 118 110 / 0.07) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.dark .chat-wallpaper {
+  background-color: #0b141a;
+  background-image: radial-gradient(rgb(148 163 184 / 0.06) 1px, transparent 1px);
+}
+
+@utility input {
+  @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition
+    placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15
+    dark:border-slate-700 dark:bg-slate-900 dark:placeholder:text-slate-500;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
+    disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800; }
+@utility btn-ghost { @apply btn text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800; }
+@utility btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+@utility icon-btn {
+  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition
+    hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-slate-800;
+}
+@utility card { @apply rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-800; }
+@utility scrollbar-thin { scrollbar-width: thin; scrollbar-color: rgb(148 163 184 / 0.5) transparent; }
