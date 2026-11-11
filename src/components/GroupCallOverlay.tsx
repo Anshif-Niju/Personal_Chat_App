@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { Mic, MicOff, PhoneOff, Phone, Video, VideoOff, Users } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Phone, ScreenShare, ScreenShareOff, Video, VideoOff, Users } from 'lucide-react';
 import { useGroupCall, GroupPeer } from '../store/groupCall';
 import { useNow } from '../lib/hooks';
 import { duration } from '../lib/format';
@@ -76,7 +76,7 @@ export default function GroupCallOverlay() {
       </div>
 
       <div className={clsx('grid min-h-0 flex-1 gap-2 px-2 pb-2 sm:px-4', cols)} style={{ gridAutoRows: '1fr' }}>
-        <Tile user={selfUser} stream={s.localStream} local showVideo={isVideo && !s.cameraOff} muted={s.micMuted} />
+        <Tile user={selfUser} stream={s.screenStream ?? s.localStream} local showVideo={isVideo && (!!s.screenStream || !s.cameraOff)} muted={s.micMuted} />
         {remotes.map((p) => (
           <Tile key={p.user.id} user={p.user} stream={p.stream} showVideo={isVideo} />
         ))}
@@ -89,6 +89,11 @@ export default function GroupCallOverlay() {
         {isVideo && (
           <button onClick={s.toggleCamera} className={clsx('flex h-14 w-14 items-center justify-center rounded-full', s.cameraOff ? 'bg-white text-slate-900' : 'bg-white/15 hover:bg-white/25')} aria-label="Camera">
             {s.cameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
+          </button>
+        )}
+        {isVideo && typeof navigator.mediaDevices?.getDisplayMedia === 'function' && (
+          <button onClick={() => void s.toggleScreenShare()} className={clsx('flex h-14 w-14 items-center justify-center rounded-full', s.screenStream ? 'bg-white text-slate-900' : 'bg-white/15 hover:bg-white/25')} aria-label={s.screenStream ? 'Stop sharing screen' : 'Share screen'} title={s.screenStream ? 'Stop sharing' : 'Share screen'}>
+            {s.screenStream ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
           </button>
         )}
         <button onClick={s.leave} className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 hover:bg-red-700" aria-label="Leave call">

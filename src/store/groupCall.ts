@@ -33,6 +33,7 @@ interface GroupCallState {
   peers: Record<string, { user: GroupPeer; stream: MediaStream | null }>;
   micMuted: boolean;
   cameraOff: boolean;
+  screenStream: MediaStream | null;
   startedAt: number | null;
 
   start: (conversationId: string, groupName: string, type: 'audio' | 'video') => Promise<void>;
@@ -42,6 +43,7 @@ interface GroupCallState {
   leave: () => void;
   toggleMic: () => void;
   toggleCamera: () => void;
+  toggleScreenShare: () => Promise<void>;
 }
 
 type Signal = { type: 'offer'; sdp: string } | { type: 'answer'; sdp: string } | { type: 'candidate'; candidate: RTCIceCandidateInit };
@@ -68,8 +70,17 @@ const idle = {
   peers: {} as GroupCallState['peers'],
   micMuted: false,
   cameraOff: false,
+  screenStream: null as MediaStream | null,
   startedAt: null as number | null,
 };
+
+/** Swap the outgoing video track on every connection (camera <-> screen). */
+async function replaceOutgoingVideo(track: MediaStreamTrack | null) {
+  for (const c of conns.values()) {
+    const sender = c.pc.getSenders().find((x) => x.track?.kind === 'video');
+    if (sender) await sender.replaceTrack(track).catch(() => undefined);
+  }
+}
 
 const inOneToOneCall = () => {
   const c = useCall.getState().status;
@@ -105,6 +116,7 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
     stopRinging();
     [...conns.keys()].forEach(dropConn);
     get().localStream?.getTracks().forEach((t) => t.stop());
+    get().screenStream?.getTracks().forEach((t) => t.stop());
     set({ ...idle, peers: {} });
   }
 
@@ -254,6 +266,27 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
       const off = !get().cameraOff;
       get().localStream?.getVideoTracks().forEach((t) => (t.enabled = !off));
       set({ cameraOff: off });
+    },
+
+    toggleScreenShare: async () => {
+      const st = get();
+      if (st.call?.callType !== 'video') return;
+      const stop = async () => {
+        get().screenStream?.getTracks().forEach((t) => t.stop());
+        set({ screenStream: null });
+        await replaceOutgoingVideo(get().localStream?.getVideoTracks()[0] ?? null);
+      };
+      if (st.screenStream) return stop();
+      try {
+        const ms = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const track = ms.getVideoTracks()[0];
+        if (!track) return;
+        track.onended = () => void stop();
+        set({ screenStream: ms });
+        await replaceOutgoingVideo(track);
+      } catch {
+        // User cancelled the picker: nothing to do.
+      }
     },
   };
 });
