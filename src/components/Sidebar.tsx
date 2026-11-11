@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { MessageCirclePlus, MessagesSquare, Phone, Search, Settings, UserPlus, Users, UsersRound } from 'lucide-react';
 import { useAuth } from '../store/auth';
 import { useChat } from '../store/chat';
+import { useWallpaper, wallStyle } from '../store/wallpaper';
 import { Avatar, EmptyState } from './ui';
 import { chatListTime, conversationTitle, messagePreview, otherParticipant } from '../lib/format';
 import FriendsPanel from './FriendsPanel';
@@ -19,17 +20,18 @@ export default function Sidebar() {
   const totalUnread = useChat((s) => Object.values(s.conversations).reduce((n, c) => n + (c.unreadCount > 0 ? 1 : 0), 0));
   const [newChat, setNewChat] = useState(false);
   const [newGroup, setNewGroup] = useState(false);
+  const listWall = useWallpaper((s) => s.list);
 
   const tab = location.pathname.startsWith('/friends') ? 'friends' : location.pathname.startsWith('/calls') ? 'calls' : 'chats';
 
   return (
-    <div className="flex h-full flex-col bg-white dark:bg-slate-950">
+    <div className="flex h-full flex-col bg-white dark:bg-slate-950" style={wallStyle(listWall)}>
       <header className="flex items-center gap-2 px-4 pb-2 pt-4">
         <Link to="/settings" className="rounded-full" title="Profile & settings">
           <Avatar name={me.displayName} url={me.avatarUrl} size="sm" />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-lg font-bold tracking-tight">Anshif Chat</div>
+          <div className="truncate text-lg font-bold tracking-tight">M32 Baddies</div>
         </div>
         <button className="icon-btn" title="New chat" onClick={() => setNewChat(true)}>
           <MessageCirclePlus className="h-5 w-5" />
@@ -168,13 +170,14 @@ function ChatList({ onNewChat }: { onNewChat: () => void }) {
 function ChatRow({ c, meId, active, online, typingNames }: { c: Conversation; meId: string; active: boolean; online?: boolean | null; typingNames: string[] }) {
   const other = otherParticipant(c, meId);
   const title = conversationTitle(c, meId);
+  const customBg = useWallpaper((s) => s.list.kind !== 'default');
   const preview = typingNames.length
     ? c.type === 'group'
       ? `${typingNames[0]} is typing…`
       : 'typing…'
     : messagePreview(c.lastMessage, c, meId);
   return (
-    <li>
+    <li className={clsx(customBg && 'mb-1 rounded-xl bg-white/85 dark:bg-slate-900/85')}>
       <Link
         to={`/chat/${c.id}`}
         className={clsx(

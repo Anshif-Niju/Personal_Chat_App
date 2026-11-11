@@ -6,7 +6,7 @@ import { useUi } from '../../store/ui';
 import { api, errorMessage } from '../../lib/api';
 import { getSocket } from '../../lib/socket';
 import { duration as fmtDuration, fileSize } from '../../lib/format';
-import { Modal, Spinner } from '../ui';
+import { Spinner } from '../ui';
 import type { Conversation } from '../../types';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -305,41 +305,105 @@ export default function Composer({ conv, meId }: { conv: Conversation; meId: str
         </div>
       )}
 
-      <Modal open={pending.length > 0} onClose={() => setPending([])} title={pending.length > 1 ? `Send ${pending.length} files` : 'Send file'}>
-        <div className="space-y-3 p-4">
-          <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto">
-            {pending.map((f, i) => (
-              <FilePreview key={i} file={f} single={pending.length === 1} />
-            ))}
-          </div>
-          <input className="input" placeholder="Add a caption…" value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={4000} onKeyDown={(e) => e.key === 'Enter' && sendPending()} autoFocus />
-          <button className="btn-primary w-full" onClick={sendPending}>
-            <Send className="h-4 w-4" /> Send
-          </button>
-        </div>
-      </Modal>
+      {pending.length > 0 && (
+        <SendPreview files={pending} caption={caption} setCaption={setCaption} onSend={sendPending} onClose={() => setPending([])} />
+      )}
     </div>
   );
 }
 
-function FilePreview({ file, single }: { file: File; single: boolean }) {
-  const [url] = useState(() => (file.type.startsWith('image/') || file.type.startsWith('video/') ? URL.createObjectURL(file) : null));
-  useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
+/** Full-screen preview shown after choosing files: big preview on top, caption box + send at the bottom. */
+function SendPreview({
+  files,
+  caption,
+  setCaption,
+  onSend,
+  onClose,
+}: {
+  files: File[];
+  caption: string;
+  setCaption: (v: string) => void;
+  onSend: () => void;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const [urls, setUrls] = useState<(string | null)[]>([]);
+
+  // Create object URLs inside the effect so React StrictMode's mount/cleanup/mount cycle can't revoke them early.
+  useEffect(() => {
+    const created = files.map((f) => (f.type.startsWith('image/') || f.type.startsWith('video/') ? URL.createObjectURL(f) : null));
+    setUrls(created);
+    return () => created.forEach((u) => u && URL.revokeObjectURL(u));
+  }, [files]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const file = files[Math.min(index, files.length - 1)];
+  const url = urls[Math.min(index, files.length - 1)] ?? null;
+
   return (
-    <div className={clsx('overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800', single && 'col-span-2')}>
-      {url && file.type.startsWith('image/') ? (
-        <img src={url} alt="" className="max-h-72 w-full object-contain" />
-      ) : url ? (
-        <video src={url} className="max-h-72 w-full" controls />
-      ) : (
-        <div className="flex items-center gap-3 p-4">
-          <FileText className="h-8 w-8 text-brand-600" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{file.name}</div>
-            <div className="text-xs text-slate-500">{fileSize(file.size)}</div>
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900 text-white">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button className="icon-btn text-white hover:bg-white/10" onClick={onClose} aria-label="Close">
+          <X className="h-6 w-6" />
+        </button>
+        <div className="min-w-0 flex-1 truncate text-sm text-white/80">{file.name}</div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4">
+        {url && file.type.startsWith('image/') ? (
+          <img src={url} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
+        ) : url ? (
+          <video src={url} className="max-h-full max-w-full rounded-lg" controls />
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-white/10">
+              <FileText className="h-14 w-14" />
+            </div>
+            <div className="max-w-xs truncate text-lg font-medium">{file.name}</div>
+            <div className="text-sm text-white/60">{fileSize(file.size)}</div>
           </div>
+        )}
+      </div>
+
+      {files.length > 1 && (
+        <div className="flex justify-center gap-2 overflow-x-auto px-4 py-2">
+          {files.map((f, i) => (
+            <button
+              key={i}
+              onClick={() => setIndex(i)}
+              className={clsx('h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-white/10 ring-2', i === index ? 'ring-brand-400' : 'ring-transparent opacity-70')}
+            >
+              {urls[i] && f.type.startsWith('image/') ? (
+                <img src={urls[i]!} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center">
+                  <FileText className="h-6 w-6" />
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       )}
+
+      <div className="flex items-end gap-2 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 sm:px-6">
+        <input
+          className="min-h-[46px] flex-1 rounded-full border-0 bg-slate-800 px-5 text-[15px] text-white outline-none ring-1 ring-white/10 placeholder:text-white/50 focus:ring-2 focus:ring-brand-500"
+          placeholder="Add a caption"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          maxLength={4000}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && onSend()}
+          autoFocus
+        />
+        <button className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700" onClick={onSend} aria-label="Send">
+          <Send className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 }

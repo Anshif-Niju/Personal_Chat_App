@@ -66,6 +66,16 @@ function StatusIcon({ status }: { status: ReturnType<typeof messageStatus> }) {
   }
 }
 
+const EMOJI_RE = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[‍️⃣]|[\u{1f3fb}-\u{1f3ff}]|[0-9#*]️?⃣)+$/u;
+
+/** Number of emoji if the text is only 1-3 emoji (shown large, like WhatsApp), otherwise 0. */
+function emojiOnlyCount(text: string): number {
+  const t = text.trim();
+  if (!t || t.length > 40 || !EMOJI_RE.test(t)) return 0;
+  const seg = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(t)].length : [...t].length;
+  return seg >= 1 && seg <= 3 ? seg : 0;
+}
+
 function Linkified({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s<]+)/g);
   return (
@@ -185,6 +195,16 @@ function MessageBubbleImpl(props: Props) {
   const status = mine ? messageStatus(m, conv, meId) : null;
   const canEdit = mine && !m.isDeleted && !m.localStatus && !m.forwarded && ['text', 'image', 'video', 'file'].includes(m.messageType);
   const persisted = !m.localStatus && !m.isDeleted;
+  const bigEmoji = !m.isDeleted && !m.attachment && !m.forwarded ? emojiOnlyCount(m.content) : 0;
+  const inlineMeta = !m.isDeleted && !!m.content && !m.attachment && !bigEmoji;
+  const meta = (
+    <div className="flex items-center justify-end gap-1 whitespace-nowrap text-[11px] leading-none text-slate-500 dark:text-slate-400">
+      {isPinned && <Pin className="h-3 w-3" />}
+      {m.editedAt && !m.isDeleted && <span>edited</span>}
+      <span>{messageTime(m.createdAt)}</span>
+      {status && <StatusIcon status={status} />}
+    </div>
+  );
 
   return (
     <div
@@ -232,23 +252,31 @@ function MessageBubbleImpl(props: Props) {
             <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
               <Ban className="h-4 w-4" /> This message was deleted
             </div>
+          ) : inlineMeta ? (
+            <div className="flex flex-wrap items-end justify-end gap-x-3">
+              <div className="min-w-0 max-w-full whitespace-pre-wrap break-words text-[15px] leading-snug">
+                <Linkified text={m.content} />
+              </div>
+              <div className="ml-auto shrink-0 translate-y-px">{meta}</div>
+            </div>
           ) : (
             <>
               {m.attachment && <AttachmentView m={m} onOpen={() => props.onOpenMedia(m)} />}
               {m.content && (
-                <div className={clsx('whitespace-pre-wrap break-words text-[15px] leading-snug', m.attachment && 'mt-1.5')}>
+                <div
+                  className={clsx(
+                    'whitespace-pre-wrap break-words leading-snug',
+                    bigEmoji === 1 ? 'text-6xl leading-tight' : bigEmoji > 1 ? 'text-5xl leading-tight' : 'text-[15px]',
+                    m.attachment && 'mt-1.5',
+                  )}
+                >
                   <Linkified text={m.content} />
                 </div>
               )}
             </>
           )}
 
-          <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-            {isPinned && <Pin className="h-3 w-3" />}
-            {m.editedAt && !m.isDeleted && <span>edited</span>}
-            <span>{messageTime(m.createdAt)}</span>
-            {status && <StatusIcon status={status} />}
-          </div>
+          {!inlineMeta && <div className="mt-0.5">{meta}</div>}
 
           {persisted && (
             <button
@@ -265,7 +293,7 @@ function MessageBubbleImpl(props: Props) {
         </div>
 
         {reactionGroups.length > 0 && (
-          <div className={clsx('-mt-1.5 flex gap-1', mine ? 'mr-2' : 'ml-2')}>
+          <div className={clsx('relative z-10 -mt-3 flex gap-1', mine ? 'mr-2' : 'ml-2')}>
             {reactionGroups.map(([emoji, count]) => (
               <button
                 key={emoji}

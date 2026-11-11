@@ -5,7 +5,9 @@ import { ArrowDown, ArrowLeft, Info, MessageSquareOff, Phone, Pin, Search, Video
 import { useAuth } from '../../store/auth';
 import { useChat } from '../../store/chat';
 import { useCall } from '../../store/call';
+import { useGroupCall } from '../../store/groupCall';
 import { useUi } from '../../store/ui';
+import { useWallpaper, wallStyle } from '../../store/wallpaper';
 import { api, errorMessage } from '../../lib/api';
 import { useDebounced } from '../../lib/hooks';
 import { conversationTitle, dayLabel, lastSeenLabel, messageTime, otherParticipant } from '../../lib/format';
@@ -25,6 +27,10 @@ export default function ChatView() {
   const typing = useChat((s) => s.typing[id]);
   const presence = useChat((s) => s.presence);
   const startCall = useCall((s) => s.startCall);
+  const startGroupCall = useGroupCall((s) => s.start);
+  const joinGroupCall = useGroupCall((s) => s.join);
+  const groupCallStatus = useGroupCall((s) => s.status);
+  const ongoingCall = useGroupCall((s) => s.ongoing[id]);
   const toast = useUi((s) => s.toast);
   const [missing, setMissing] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -170,10 +176,30 @@ export default function ChatView() {
               </button>
             </>
           )}
+          {conv.type === 'group' && (
+            <>
+              <button className="icon-btn" onClick={() => void startGroupCall(conv.id, title, 'audio')} aria-label="Group voice call">
+                <Phone className="h-5 w-5" />
+              </button>
+              <button className="icon-btn" onClick={() => void startGroupCall(conv.id, title, 'video')} aria-label="Group video call">
+                <Video className="h-5 w-5" />
+              </button>
+            </>
+          )}
           <button className={clsx('icon-btn hidden sm:inline-flex', showInfo && 'text-brand-600')} onClick={() => setShowInfo((v) => !v)} aria-label="Conversation info">
             <Info className="h-5 w-5" />
           </button>
         </header>
+
+        {ongoingCall && groupCallStatus === 'idle' && (
+          <div className="flex items-center gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+            <Video className="h-4 w-4 shrink-0 text-emerald-600" />
+            <div className="min-w-0 flex-1 truncate">Group {ongoingCall.callType} call in progress</div>
+            <button className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700" onClick={() => void joinGroupCall(ongoingCall)}>
+              Join
+            </button>
+          </div>
+        )}
 
         {searchOpen && <SearchBar conversationId={id} onClose={() => setSearchOpen(false)} onPick={jumpTo} />}
 
@@ -215,6 +241,7 @@ export default function ChatView() {
 function MessageList({ conversationId, meId, actions, highlight }: { conversationId: string; meId: string; actions: BubbleActions; highlight: string | null }) {
   const bucket = useChat((s) => s.messages[conversationId]);
   const conv = useChat((s) => s.conversations[conversationId])!;
+  const chatWall = useWallpaper((s) => s.chat);
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const prevHeight = useRef<number | null>(null);
@@ -255,7 +282,7 @@ function MessageList({ conversationId, meId, actions, highlight }: { conversatio
   };
 
   return (
-    <div className="chat-wallpaper relative min-h-0 flex-1">
+    <div className="chat-wallpaper relative min-h-0 flex-1" style={wallStyle(chatWall)}>
       <div ref={scroller} onScroll={onScroll} className="scrollbar-thin h-full overflow-y-auto py-3">
         {bucket?.loading && (
           <div className="flex justify-center py-3">

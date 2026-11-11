@@ -117,7 +117,7 @@ export default function CallOverlay() {
       )}
 
       <div className="relative z-20 flex items-center justify-between p-4">
-        <div className="text-sm text-white/70">{isVideo ? 'Video call' : 'Voice call'} · Anshif Chat</div>
+        <div className="text-sm text-white/70">{isVideo ? 'Video call' : 'Voice call'} · M32 Baddies</div>
         {inCall && (
           <button className="rounded-full p-2 hover:bg-white/10" onClick={() => setMinimized(true)} aria-label="Minimize call">
             <Minimize2 className="h-5 w-5" />

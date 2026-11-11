@@ -10,6 +10,7 @@ import { registerWebPush } from '../lib/notify';
 import Sidebar from '../components/Sidebar';
 import ChatView from '../components/chat/ChatView';
 import CallOverlay from '../components/CallOverlay';
+import GroupCallOverlay from '../components/GroupCallOverlay';
 import SettingsPage from './Settings';
 
 function Welcome() {
@@ -18,7 +19,7 @@ function Welcome() {
       <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
         <MessageSquareText className="h-10 w-10" />
       </div>
-      <h2 className="text-2xl font-semibold">Anshif Chat</h2>
+      <h2 className="text-2xl font-semibold">M32 Baddies</h2>
     </div>
   );
 }
@@ -63,6 +64,7 @@ export default function AppShell() {
         </Routes>
       </main>
       <CallOverlay />
+      <GroupCallOverlay />
     </div>
   );
 }

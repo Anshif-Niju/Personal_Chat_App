@@ -7,14 +7,14 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    data = { title: 'Anshif Chat', body: event.data && event.data.text() };
+    data = { title: 'M32 Baddies', body: event.data && event.data.text() };
   }
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       // If a tab is focused the app shows its own in-app notification.
       if (clients.some((c) => c.focused)) return;
       const d = data.data || {};
-      return self.registration.showNotification(data.title || 'Anshif Chat', {
+      return self.registration.showNotification(data.title || 'M32 Baddies', {
         body: data.body || '',
         icon: '/favicon.svg',
         badge: '/favicon.svg',

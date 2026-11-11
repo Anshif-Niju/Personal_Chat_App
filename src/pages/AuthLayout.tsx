@@ -6,19 +6,19 @@ export default function AuthLayout({ title, subtitle, children }: { title: strin
       <div className="relative hidden flex-1 overflow-hidden bg-gradient-to-br from-brand-700 via-brand-800 to-slate-900 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="flex items-center gap-3">
           <img src="/favicon.svg" alt="" className="h-10 w-10 rounded-xl ring-2 ring-white/20" />
-          <span className="text-xl font-bold tracking-tight">Anshif Chat</span>
+          <span className="text-xl font-bold tracking-tight">M32 Baddies</span>
         </div>
         <div className="max-w-md">
-          <h1 className="text-4xl font-bold leading-tight">Anshif Chat</h1>
+          <h1 className="text-4xl font-bold leading-tight">M32 Baddies</h1>
         </div>
-        <div className="text-xs text-brand-100/60">© {new Date().getFullYear()} Anshif Chat</div>
+        <div className="text-xs text-brand-100/60">© {new Date().getFullYear()} M32 Baddies</div>
         <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand-400/20 blur-3xl" />
       </div>
       <div className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <img src="/favicon.svg" alt="" className="h-10 w-10" />
-            <span className="text-xl font-bold">Anshif Chat</span>
+            <span className="text-xl font-bold">M32 Baddies</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>

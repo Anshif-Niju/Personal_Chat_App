@@ -1,10 +1,11 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowLeft, Bell, Camera, KeyRound, LogOut, Monitor, Moon, Palette, Shield, Smartphone, Sun, Trash2, User, UserX } from 'lucide-react';
+import { ArrowLeft, Bell, Camera, Image as ImageIcon, KeyRound, LogOut, Monitor, Moon, Palette, Shield, Smartphone, Sun, Trash2, User, UserX } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../store/auth';
 import { useUi, Theme } from '../store/ui';
+import { imageToDataUrl, PRESET_COLORS, useWallpaper, Wall, WallTarget } from '../store/wallpaper';
 import { api, errorMessage } from '../lib/api';
 import { enableNotifications } from '../lib/notify';
 import { Avatar, Modal, Spinner, Toggle } from '../components/ui';
@@ -34,6 +35,7 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-2xl space-y-4 p-4 pb-16">
         <ProfileSection />
         <AppearanceSection />
+        <WallpaperSection />
         <PrivacySection />
         <NotificationsSection />
         <PasswordSection />
@@ -180,6 +182,68 @@ function AppearanceSection() {
             <o.icon className="h-5 w-5" /> {o.label}
           </button>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+function WallpaperPicker({ target, label }: { target: WallTarget; label: string }) {
+  const wall = useWallpaper((s) => s[target]);
+  const setWall = useWallpaper((s) => s.set);
+  const toast = useUi((s) => s.toast);
+  const input = useRef<HTMLInputElement>(null);
+
+  function save(w: Wall) {
+    if (!setWall(target, w)) toast('That image is too large to save. Try a smaller one.', 'error');
+  }
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast('Please choose an image', 'error');
+    try {
+      save({ kind: 'image', value: await imageToDataUrl(file) });
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-2 text-sm font-medium">{label}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => save({ kind: 'default', value: '' })}
+          className={clsx('h-10 rounded-lg border-2 px-3 text-xs font-medium', wall.kind === 'default' ? 'border-brand-500 text-brand-700 dark:text-brand-300' : 'border-slate-200 dark:border-slate-700')}
+        >
+          Default
+        </button>
+        {PRESET_COLORS.map((c) => (
+          <button
+            key={c}
+            onClick={() => save({ kind: 'color', value: c })}
+            aria-label={`Color ${c}`}
+            style={{ backgroundColor: c }}
+            className={clsx('h-10 w-10 rounded-lg border-2', wall.kind === 'color' && wall.value === c ? 'border-brand-500' : 'border-slate-200 dark:border-slate-700')}
+          />
+        ))}
+        <button
+          onClick={() => input.current?.click()}
+          style={wall.kind === 'image' ? { backgroundImage: `url(${wall.value})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+          className={clsx('flex h-10 items-center gap-1.5 rounded-lg border-2 px-3 text-xs font-medium', wall.kind === 'image' ? 'border-brand-500 text-white [text-shadow:0_0_4px_#000]' : 'border-slate-200 dark:border-slate-700')}
+        >
+          <ImageIcon className="h-4 w-4" /> {wall.kind === 'image' ? 'Change image' : 'Upload image'}
+        </button>
+        <input ref={input} type="file" accept="image/*" hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ''; }} />
+      </div>
+    </div>
+  );
+}
+
+function WallpaperSection() {
+  return (
+    <Card icon={ImageIcon} title="Chat background">
+      <div className="space-y-5">
+        <WallpaperPicker target="chat" label="Inside the chat" />
+        <WallpaperPicker target="list" label="Chat list" />
       </div>
     </Card>
   );

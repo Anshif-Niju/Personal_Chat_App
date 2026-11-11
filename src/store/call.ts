@@ -107,12 +107,20 @@ export const useCall = create<CallState>((set, get) => {
       if (get().status !== 'idle' && get().status !== 'ended') return useUi.getState().toast('You are already in a call', 'error');
       if (!getSocket()?.connected) return useUi.getState().toast('You are offline', 'error');
       let stream: MediaStream;
+      const sel = { audio: get().selected.audioIn, video: get().selected.videoIn };
       try {
-        stream = await getMedia(type === 'video', { audio: get().selected.audioIn, video: get().selected.videoIn });
+        stream = await getMedia(type === 'video', sel);
       } catch (err) {
-        return useUi.getState().toast(mediaErrorMessage(err), 'error');
+        if (type !== 'video') return useUi.getState().toast(mediaErrorMessage(err), 'error');
+        // Camera unavailable (e.g. used by another window): keep the video call, send audio only.
+        useUi.getState().toast(mediaErrorMessage(err), 'error');
+        try {
+          stream = await getMedia(false, sel);
+        } catch {
+          stream = new MediaStream();
+        }
       }
-      set({ ...initial, status: 'outgoing', direction: 'outgoing', callType: type, peer, localStream: stream });
+      set({ ...initial, status: 'outgoing', direction: 'outgoing', callType: type, peer, localStream: stream, cameraOff: type === 'video' && stream.getVideoTracks().length === 0 });
       startRinging('outgoing');
       try {
         const res = await emitAck<{ ok: boolean; callId?: string; iceServers?: RTCIceServer[]; error?: string; code?: string }>('call:initiate', {
@@ -136,15 +144,17 @@ export const useCall = create<CallState>((set, get) => {
       const { callId, callType, status } = get();
       if (!callId || status !== 'incoming') return;
       stopRinging();
+      // Never decline the call just because the camera/mic can't be opened (e.g. the camera is
+      // already used by another window): fall back to audio only, then to receive-only.
+      const sel = { audio: get().selected.audioIn, video: get().selected.videoIn };
       let stream: MediaStream;
       try {
-        stream = await getMedia(callType === 'video', { audio: get().selected.audioIn, video: get().selected.videoIn });
+        stream = await getMedia(callType === 'video', sel);
       } catch (err) {
         useUi.getState().toast(mediaErrorMessage(err), 'error');
-        get().rejectCall();
-        return;
+        stream = await getMedia(false, sel).catch(() => new MediaStream());
       }
-      set({ localStream: stream, status: 'connecting' });
+      set({ localStream: stream, status: 'connecting', cameraOff: stream.getVideoTracks().length === 0 });
       const res = await emitAck<{ ok: boolean; iceServers?: RTCIceServer[]; error?: string }>('call:accept', { callId }).catch(() => ({ ok: false, error: 'Network error' }) as const);
       if (!res.ok) {
         cleanup(null);

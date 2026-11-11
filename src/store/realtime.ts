@@ -7,6 +7,7 @@ import { useAuth } from './auth';
 import { useChat } from './chat';
 import { useUi } from './ui';
 import { bindCallEvents } from './call';
+import { bindGroupCallEvents } from './groupCall';
 
 let deliveredQueue: string[] = [];
 let deliveredTimer: ReturnType<typeof setTimeout> | null = null;
@@ -154,6 +155,7 @@ export function startRealtime() {
   });
 
   bindCallEvents();
+  bindGroupCallEvents();
 
   if (!visibilityBound) {
     visibilityBound = true;
