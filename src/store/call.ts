@@ -24,6 +24,8 @@ interface CallState {
   remoteStream: MediaStream | null;
   micMuted: boolean;
   cameraOff: boolean;
+  screenStream: MediaStream | null;
+  remoteSharing: boolean;
   startedAt: number | null;
   reconnecting: boolean;
   endedLabel: string | null;
@@ -36,6 +38,7 @@ interface CallState {
   endCall: () => void;
   toggleMic: () => void;
   toggleCamera: () => void;
+  toggleScreenShare: () => Promise<void>;
   refreshDevices: () => Promise<void>;
   selectDevice: (kind: 'audioIn' | 'videoIn' | 'audioOut', deviceId: string) => Promise<void>;
   switchCamera: () => Promise<void>;
@@ -56,6 +59,8 @@ const initial = {
   remoteStream: null,
   micMuted: false,
   cameraOff: false,
+  screenStream: null as MediaStream | null,
+  remoteSharing: false,
   startedAt: null,
   reconnecting: false,
   endedLabel: null,
@@ -68,6 +73,7 @@ export const useCall = create<CallState>((set, get) => {
     session = null;
     pendingSignals = [];
     get().localStream?.getTracks().forEach((t) => t.stop());
+    get().screenStream?.getTracks().forEach((t) => t.stop());
     if (label) {
       set({ ...initial, status: 'ended', endedLabel: label, peer: get().peer, callType: get().callType });
       if (endedTimer) clearTimeout(endedTimer);
@@ -83,6 +89,7 @@ export const useCall = create<CallState>((set, get) => {
     const callId = get().callId!;
     session = new PeerSession(callId, iceServers, isCaller, {
       onRemoteStream: (stream) => set({ remoteStream: stream }),
+      onRemoteShare: (on) => set({ remoteSharing: on }),
       onStateChange: (state) => {
         if (state === 'connected') {
           set((s) => ({ status: 'active', reconnecting: false, startedAt: s.startedAt ?? Date.now() }));
@@ -189,6 +196,30 @@ export const useCall = create<CallState>((set, get) => {
       set({ cameraOff: off });
     },
 
+    toggleScreenShare: async () => {
+      const st = get();
+      if (st.status !== 'active') return;
+      const stop = async () => {
+        get().screenStream?.getTracks().forEach((t) => t.stop());
+        set({ screenStream: null });
+        await session?.replaceTrack('video', get().localStream?.getVideoTracks()[0] ?? null);
+        session?.sendShare(false);
+      };
+      if (st.screenStream) return stop();
+      if (typeof navigator.mediaDevices?.getDisplayMedia !== 'function') return useUi.getState().toast('Screen sharing is not supported on this device', 'error');
+      try {
+        const ms = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const track = ms.getVideoTracks()[0];
+        if (!track) return;
+        track.onended = () => void stop();
+        set({ screenStream: ms });
+        await session?.replaceTrack('video', track);
+        session?.sendShare(true);
+      } catch {
+        // picker cancelled
+      }
+    },
+
     refreshDevices: async () => {
       const list = await navigator.mediaDevices.enumerateDevices();
       set({
@@ -282,6 +313,7 @@ export function bindCallEvents() {
     session?.close();
     session = null;
     s.localStream?.getTracks().forEach((t) => t.stop());
+    s.screenStream?.getTracks().forEach((t) => t.stop());
     call.setState({ ...initial, status: 'ended', endedLabel: label, peer: s.peer, callType: s.callType });
     setTimeout(() => {
       if (call.getState().status === 'ended') call.setState({ ...initial });
@@ -304,6 +336,7 @@ export function bindCallEvents() {
       session?.close();
       session = null;
       s.localStream?.getTracks().forEach((t) => t.stop());
+      s.screenStream?.getTracks().forEach((t) => t.stop());
       call.setState({ ...initial, status: 'ended', endedLabel: 'Call dropped', peer: s.peer });
       setTimeout(() => call.getState().status === 'ended' && call.setState({ ...initial }), 1800);
       return;
@@ -317,6 +350,7 @@ function startCallerSession() {
   if (!s.callId) return;
   session = new PeerSession(s.callId, iceServers, true, {
     onRemoteStream: (stream) => useCall.setState({ remoteStream: stream }),
+    onRemoteShare: (on) => useCall.setState({ remoteSharing: on }),
     onStateChange: (state) => {
       if (state === 'connected') useCall.setState((st) => ({ status: 'active', reconnecting: false, startedAt: st.startedAt ?? Date.now() }));
       else if (state === 'disconnected' || state === 'failed') useCall.setState({ reconnecting: true });

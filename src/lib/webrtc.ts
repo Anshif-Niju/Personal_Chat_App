@@ -3,11 +3,13 @@ import { getSocket } from './socket';
 export type SignalPayload =
   | { type: 'offer'; sdp: string }
   | { type: 'answer'; sdp: string }
-  | { type: 'candidate'; candidate: RTCIceCandidateInit };
+  | { type: 'candidate'; candidate: RTCIceCandidateInit }
+  | { type: 'share'; on: boolean };
 
 interface Handlers {
   onRemoteStream: (stream: MediaStream) => void;
   onStateChange: (state: RTCPeerConnectionState) => void;
+  onRemoteShare?: (on: boolean) => void;
 }
 
 /**
@@ -51,10 +53,16 @@ export class PeerSession {
 
   addLocalStream(stream: MediaStream) {
     for (const track of stream.getTracks()) this.pc.addTrack(track, stream);
+    // Always keep a (empty) video sender so a screen can be shared later, even in voice calls, without renegotiating.
+    if (this.isCaller && !this.pc.getSenders().some((s) => s.track?.kind === 'video')) this.pc.addTransceiver('video', { direction: 'sendrecv' });
+  }
+
+  sendShare(on: boolean) {
+    this.signal({ type: 'share', on });
   }
 
   async replaceTrack(kind: 'audio' | 'video', track: MediaStreamTrack | null) {
-    const sender = this.pc.getSenders().find((s) => s.track?.kind === kind || (!s.track && kind === 'video'));
+    const sender = this.pc.getTransceivers().find((t) => t.receiver.track.kind === kind && t.currentDirection !== 'stopped')?.sender;
     if (sender) await sender.replaceTrack(track);
   }
 
@@ -78,6 +86,7 @@ export class PeerSession {
     if (this.pc.signalingState === 'closed') return;
     if (payload.type === 'offer') {
       await this.pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
+      for (const t of this.pc.getTransceivers()) if (t.receiver.track.kind === 'video' && t.direction === 'recvonly') t.direction = 'sendrecv';
       await this.flushCandidates();
       const answer = await this.pc.createAnswer();
       await this.pc.setLocalDescription(answer);
@@ -86,6 +95,8 @@ export class PeerSession {
       if (this.pc.signalingState !== 'have-local-offer') return;
       await this.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
       await this.flushCandidates();
+    } else if (payload.type === 'share') {
+      this.handlers.onRemoteShare?.(payload.on);
     } else if (payload.type === 'candidate') {
       if (!this.pc.remoteDescription) this.pendingCandidates.push(payload.candidate);
       else await this.pc.addIceCandidate(payload.candidate).catch(() => undefined);

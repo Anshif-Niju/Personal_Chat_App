@@ -1,18 +1,58 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { MessageSquareText } from 'lucide-react';
+import { Bell, MessageSquareText, X } from 'lucide-react';
 import { useChat } from '../store/chat';
 import { useUi } from '../store/ui';
 import { nav, startRealtime } from '../store/realtime';
 import { api } from '../lib/api';
-import { registerWebPush } from '../lib/notify';
+import { enableNotifications, registerWebPush } from '../lib/notify';
 import Sidebar from '../components/Sidebar';
 import ChatView from '../components/chat/ChatView';
 import CallOverlay from '../components/CallOverlay';
 import GroupCallOverlay from '../components/GroupCallOverlay';
 import SettingsPage from './Settings';
 import AdminPage from './Admin';
+
+/** Asks (once per browser) to turn on notifications so messages and calls arrive even when the app is closed. */
+function NotificationPrompt() {
+  const supported = typeof window !== 'undefined' && 'Notification' in window;
+  const [show, setShow] = useState(() => {
+    if (!supported || Notification.permission !== 'default') return false;
+    try {
+      return localStorage.getItem('pc-notif-dismissed') !== '1';
+    } catch {
+      return true;
+    }
+  });
+  if (!show) return null;
+  const dismiss = () => {
+    try {
+      localStorage.setItem('pc-notif-dismissed', '1');
+    } catch {
+      /* ignore */
+    }
+    setShow(false);
+  };
+  return (
+    <div className="fixed inset-x-3 top-3 z-[70] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
+      <Bell className="h-5 w-5 shrink-0 text-brand-300" />
+      <span className="min-w-0 flex-1">Turn on notifications to get messages and calls even when the app is closed.</span>
+      <button
+        className="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 font-medium hover:bg-brand-700"
+        onClick={async () => {
+          await enableNotifications();
+          setShow(false);
+        }}
+      >
+        Turn on
+      </button>
+      <button className="shrink-0 rounded-full p-1 hover:bg-white/10" onClick={dismiss} aria-label="Not now">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function Welcome() {
   return (
@@ -67,6 +107,7 @@ export default function AppShell() {
       </main>
       <CallOverlay />
       <GroupCallOverlay />
+      <NotificationPrompt />
     </div>
   );
 }

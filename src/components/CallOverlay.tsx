@@ -1,6 +1,6 @@
 import { ReactNode, RefObject, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Maximize2, Mic, MicOff, Minimize2, Phone, PhoneOff, PictureInPicture2, RefreshCcw, Settings2, Video, VideoOff, WifiOff } from 'lucide-react';
+import { Maximize2, Mic, MicOff, Minimize2, Phone, PhoneOff, PictureInPicture2, RefreshCcw, ScreenShare, ScreenShareOff, Settings2, Video, VideoOff, WifiOff } from 'lucide-react';
 import { useCall } from '../store/call';
 import { useNow } from '../lib/hooks';
 import { duration } from '../lib/format';
@@ -33,9 +33,9 @@ export default function CallOverlay() {
   const now = useNow(1000);
 
   const isVideo = s.callType === 'video';
-  const renderKey = `${s.status}-${minimized}-${s.cameraOff}`;
-  useAttachStream(remoteVideo, isVideo ? s.remoteStream : null, renderKey, s.selected.audioOut);
-  useAttachStream(localVideo, isVideo ? s.localStream : null, renderKey);
+  const renderKey = `${s.status}-${minimized}-${s.cameraOff}-${!!s.screenStream}-${s.remoteSharing}`;
+  useAttachStream(remoteVideo, isVideo || s.remoteSharing ? s.remoteStream : null, renderKey, s.selected.audioOut);
+  useAttachStream(localVideo, isVideo || s.screenStream ? s.screenStream ?? s.localStream : null, renderKey);
   useAttachStream(remoteAudio, !isVideo ? s.remoteStream : null, renderKey, s.selected.audioOut);
 
   useEffect(() => {
@@ -69,7 +69,8 @@ export default function CallOverlay() {
                 ? duration((now - s.startedAt) / 1000)
                 : '';
 
-  const remoteHasVideo = isVideo && !!s.remoteStream?.getVideoTracks().some((t) => t.readyState === 'live');
+  const showRemoteVideo = isVideo || s.remoteSharing;
+  const remoteHasVideo = showRemoteVideo && !!s.remoteStream?.getVideoTracks().some((t) => t.readyState === 'live');
   const inCall = s.status === 'active' || s.status === 'connecting' || s.status === 'outgoing';
 
   if (minimized && inCall) {
@@ -97,21 +98,22 @@ export default function CallOverlay() {
       <audio ref={remoteAudio} autoPlay />
 
       {/* Remote video / avatar */}
-      {isVideo && (s.status === 'active' || s.status === 'connecting') ? (
-        <video ref={remoteVideo} autoPlay playsInline className={clsx('absolute inset-0 h-full w-full bg-black object-contain', !remoteHasVideo && 'opacity-0')} />
+      {showRemoteVideo && (s.status === 'active' || s.status === 'connecting') ? (
+        <video ref={remoteVideo} autoPlay playsInline muted={!isVideo} className={clsx('absolute inset-0 h-full w-full bg-black object-contain', !remoteHasVideo && 'opacity-0')} />
       ) : null}
 
       {/* Local preview */}
-      {isVideo && s.localStream && s.status !== 'incoming' && (
+      {(isVideo || !!s.screenStream) && s.localStream && s.status !== 'incoming' && (
         <video
           ref={localVideo}
           autoPlay
           playsInline
           muted
           className={clsx(
-            'absolute z-10 rounded-2xl bg-slate-800 object-cover shadow-2xl ring-2 ring-white/20 [transform:scaleX(-1)]',
+            'absolute z-10 rounded-2xl bg-slate-800 shadow-2xl ring-2 ring-white/20',
+            s.screenStream ? 'object-contain' : 'object-cover [transform:scaleX(-1)]',
             s.status === 'active' ? 'bottom-28 right-4 h-44 w-32 sm:h-48 sm:w-64' : 'inset-0 h-full w-full rounded-none opacity-60 ring-0',
-            s.cameraOff && 'invisible',
+            s.cameraOff && !s.screenStream && 'invisible',
           )}
         />
       )}
@@ -125,7 +127,7 @@ export default function CallOverlay() {
         )}
       </div>
 
-      {(!isVideo || !remoteHasVideo || s.status !== 'active') && (
+      {(!remoteHasVideo || s.status !== 'active') && (
         <div className="relative z-20 flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <div className={clsx('rounded-full', (s.status === 'incoming' || s.status === 'outgoing') && 'animate-pulse-ring')}>
             <Avatar name={s.peer.displayName} url={s.peer.avatarUrl} size="xl" />
@@ -140,7 +142,7 @@ export default function CallOverlay() {
           </div>
         </div>
       )}
-      {isVideo && remoteHasVideo && s.status === 'active' && (
+      {remoteHasVideo && s.status === 'active' && (
         <div className="relative z-20 mx-auto rounded-full bg-black/40 px-4 py-1.5 text-sm backdrop-blur">
           {s.peer.displayName} · {statusText}
         </div>
@@ -181,6 +183,11 @@ export default function CallOverlay() {
             <CtrlButton active={s.micMuted} onClick={s.toggleMic} label={s.micMuted ? 'Unmute' : 'Mute'}>
               {s.micMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
             </CtrlButton>
+            {s.status === 'active' && typeof navigator.mediaDevices?.getDisplayMedia === 'function' && (
+              <CtrlButton active={!!s.screenStream} onClick={() => void s.toggleScreenShare()} label={s.screenStream ? 'Stop sharing screen' : 'Share screen'}>
+                {s.screenStream ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
+              </CtrlButton>
+            )}
             {isVideo && (
               <>
                 <CtrlButton active={s.cameraOff} onClick={s.toggleCamera} label={s.cameraOff ? 'Turn camera on' : 'Turn camera off'}>

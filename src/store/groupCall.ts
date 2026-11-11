@@ -30,7 +30,7 @@ interface GroupCallState {
   /** Ongoing calls per conversation, used for the "Join" banner. */
   ongoing: Record<string, ActiveGroupCall>;
   localStream: MediaStream | null;
-  peers: Record<string, { user: GroupPeer; stream: MediaStream | null }>;
+  peers: Record<string, { user: GroupPeer; stream: MediaStream | null; sharing?: boolean }>;
   micMuted: boolean;
   cameraOff: boolean;
   screenStream: MediaStream | null;
@@ -46,7 +46,7 @@ interface GroupCallState {
   toggleScreenShare: () => Promise<void>;
 }
 
-type Signal = { type: 'offer'; sdp: string } | { type: 'answer'; sdp: string } | { type: 'candidate'; candidate: RTCIceCandidateInit };
+type Signal = { type: 'offer'; sdp: string } | { type: 'answer'; sdp: string } | { type: 'candidate'; candidate: RTCIceCandidateInit } | { type: 'share'; on: boolean };
 
 interface PeerConn {
   pc: RTCPeerConnection;
@@ -77,7 +77,7 @@ const idle = {
 /** Swap the outgoing video track on every connection (camera <-> screen). */
 async function replaceOutgoingVideo(track: MediaStreamTrack | null) {
   for (const c of conns.values()) {
-    const sender = c.pc.getSenders().find((x) => x.track?.kind === 'video');
+    const sender = c.pc.getTransceivers().find((x) => x.receiver.track.kind === 'video' && x.currentDirection !== 'stopped')?.sender;
     if (sender) await sender.replaceTrack(track).catch(() => undefined);
   }
 }
@@ -126,13 +126,13 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
     const pc = new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' });
     const conn: PeerConn = { pc, pendingCandidates: [] };
     conns.set(user.id, conn);
-    set((s) => ({ peers: { ...s.peers, [user.id]: { user, stream: s.peers[user.id]?.stream ?? null } } }));
+    set((s) => ({ peers: { ...s.peers, [user.id]: { user, stream: s.peers[user.id]?.stream ?? null, sharing: s.peers[user.id]?.sharing } } }));
 
     pc.onicecandidate = (e) => e.candidate && signal(user.id, { type: 'candidate', candidate: e.candidate.toJSON() });
     const remote = new MediaStream();
     pc.ontrack = (e) => {
       for (const t of e.streams[0]?.getTracks() ?? [e.track]) if (!remote.getTracks().includes(t)) remote.addTrack(t);
-      set((s) => ({ peers: { ...s.peers, [user.id]: { user, stream: new MediaStream(remote.getTracks()) } } }));
+      set((s) => ({ peers: { ...s.peers, [user.id]: { user, stream: new MediaStream(remote.getTracks()), sharing: s.peers[user.id]?.sharing } } }));
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') set((s) => ({ status: 'active', startedAt: s.startedAt ?? Date.now() }));
@@ -142,8 +142,9 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
     local?.getTracks().forEach((t) => pc.addTrack(t, local));
     if (offerer) {
       // Ask to receive what we can't send (e.g. camera unavailable on this device).
-      const kinds: ('audio' | 'video')[] = get().call?.callType === 'video' ? ['audio', 'video'] : ['audio'];
-      for (const k of kinds) if (!pc.getSenders().some((s) => s.track?.kind === k)) pc.addTransceiver(k, { direction: 'recvonly' });
+      // A video sender is always kept (even in voice calls) so a screen can be shared later without renegotiating.
+      if (!pc.getSenders().some((s) => s.track?.kind === 'audio')) pc.addTransceiver('audio', { direction: 'recvonly' });
+      if (!pc.getSenders().some((s) => s.track?.kind === 'video')) pc.addTransceiver('video', { direction: 'sendrecv' });
     }
     return conn;
   }
@@ -162,10 +163,13 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
       if (!user) return;
       conn = makePeer(user, false);
       await conn.pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
+      for (const t of conn.pc.getTransceivers()) if (t.receiver.track.kind === 'video' && t.direction === 'recvonly') t.direction = 'sendrecv';
       for (const c of conn.pendingCandidates.splice(0)) await conn.pc.addIceCandidate(c).catch(() => undefined);
       const answer = await conn.pc.createAnswer();
       await conn.pc.setLocalDescription(answer);
       signal(from, { type: 'answer', sdp: answer.sdp! });
+    } else if (payload.type === 'share') {
+      set((s) => (s.peers[from] ? { peers: { ...s.peers, [from]: { ...s.peers[from], sharing: payload.on } } } : s));
     } else if (!conn) {
       return;
     } else if (payload.type === 'answer') {
@@ -270,11 +274,13 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
 
     toggleScreenShare: async () => {
       const st = get();
-      if (st.call?.callType !== 'video') return;
+      if (!st.call) return;
+      const broadcast = (on: boolean) => [...conns.keys()].forEach((id) => signal(id, { type: 'share', on }));
       const stop = async () => {
         get().screenStream?.getTracks().forEach((t) => t.stop());
         set({ screenStream: null });
         await replaceOutgoingVideo(get().localStream?.getVideoTracks()[0] ?? null);
+        broadcast(false);
       };
       if (st.screenStream) return stop();
       try {
@@ -284,6 +290,7 @@ export const useGroupCall = create<GroupCallState>((set, get) => {
         track.onended = () => void stop();
         set({ screenStream: ms });
         await replaceOutgoingVideo(track);
+        broadcast(true);
       } catch {
         // User cancelled the picker: nothing to do.
       }

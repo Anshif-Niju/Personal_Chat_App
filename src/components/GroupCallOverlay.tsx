@@ -76,9 +76,9 @@ export default function GroupCallOverlay() {
       </div>
 
       <div className={clsx('grid min-h-0 flex-1 gap-2 px-2 pb-2 sm:px-4', cols)} style={{ gridAutoRows: '1fr' }}>
-        <Tile user={selfUser} stream={s.screenStream ?? s.localStream} local showVideo={isVideo && (!!s.screenStream || !s.cameraOff)} muted={s.micMuted} />
+        <Tile user={selfUser} stream={s.screenStream ?? s.localStream} local showVideo={!!s.screenStream || (isVideo && !s.cameraOff)} muted={s.micMuted} />
         {remotes.map((p) => (
-          <Tile key={p.user.id} user={p.user} stream={p.stream} showVideo={isVideo} />
+          <Tile key={p.user.id} user={p.user} stream={p.stream} showVideo={isVideo || !!p.sharing} />
         ))}
       </div>
 
@@ -91,7 +91,7 @@ export default function GroupCallOverlay() {
             {s.cameraOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
           </button>
         )}
-        {isVideo && typeof navigator.mediaDevices?.getDisplayMedia === 'function' && (
+        {typeof navigator.mediaDevices?.getDisplayMedia === 'function' && (
           <button onClick={() => void s.toggleScreenShare()} className={clsx('flex h-14 w-14 items-center justify-center rounded-full', s.screenStream ? 'bg-white text-slate-900' : 'bg-white/15 hover:bg-white/25')} aria-label={s.screenStream ? 'Stop sharing screen' : 'Share screen'} title={s.screenStream ? 'Stop sharing' : 'Share screen'}>
             {s.screenStream ? <ScreenShareOff className="h-6 w-6" /> : <ScreenShare className="h-6 w-6" />}
           </button>
