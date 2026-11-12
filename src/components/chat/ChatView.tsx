@@ -15,7 +15,7 @@ import { Avatar, EmptyState, Modal, Spinner } from '../ui';
 import MessageBubble, { BubbleActions } from './MessageBubble';
 import Composer from './Composer';
 import ChatInfoPanel from './ChatInfoPanel';
-import type { Message } from '../../types';
+import type { Conversation, Message } from '../../types';
 
 export default function ChatView() {
   const { id = '' } = useParams();
@@ -33,6 +33,7 @@ export default function ChatView() {
   const ongoingCall = useGroupCall((s) => s.ongoing[id]);
   const toast = useUi((s) => s.toast);
   const [missing, setMissing] = useState(false);
+  const [infoFor, setInfoFor] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [forwarding, setForwarding] = useState<Message | null>(null);
@@ -98,6 +99,7 @@ export default function ChatView() {
       onReply: (m) => useChat.getState().setReplyTo(m),
       onEdit: (m) => useChat.getState().setEditing(m),
       onForward: (m) => setForwarding(m),
+      onInfo: (m) => setInfoFor(m.id),
       onDelete: (m) => setDeleting(m),
       onRetry: (m) => useChat.getState().retry(m),
       onJumpTo: jumpTo,
@@ -231,6 +233,7 @@ export default function ChatView() {
         </div>
       )}
 
+      <MessageInfoModal message={infoFor ? bucket?.items.find((x) => x.id === infoFor) ?? null : null} conv={conv} meId={me.id} onClose={() => setInfoFor(null)} />
       <ForwardModal message={forwarding} onClose={() => setForwarding(null)} />
       <DeleteModal message={deleting} canDeleteForEveryone={!!deleting && (deleting.senderId === me.id || (conv.type === 'group' && conv.admins.includes(me.id)))} onClose={() => setDeleting(null)} />
       <MediaViewer message={viewer} onClose={() => setViewer(null)} />
@@ -374,6 +377,48 @@ function SearchBar({ conversationId, onClose, onPick }: { conversationId: string
         </div>
       )}
     </div>
+  );
+}
+
+/** "Message info": who has read / received one of my messages, and when. Updates live. */
+function MessageInfoModal({ message, conv, meId, onClose }: { message: Message | null; conv: Conversation; meId: string; onClose: () => void }) {
+  const others = conv.participants.filter((p) => p.id !== meId);
+  const when = (iso: string) => `${dayLabel(iso)} ${messageTime(iso)}`;
+  const read = message ? message.readBy.filter((r) => r.userId !== meId) : [];
+  const delivered = message ? message.deliveredTo.filter((r) => r.userId !== meId && !read.some((x) => x.userId === r.userId)) : [];
+  const waiting = others.filter((p) => !read.some((r) => r.userId === p.id) && !delivered.some((r) => r.userId === p.id));
+  const row = (userId: string, at?: string) => {
+    const u = conv.participants.find((p) => p.id === userId);
+    if (!u) return null;
+    return (
+      <li key={userId} className="flex items-center gap-3 px-4 py-2">
+        <Avatar name={u.displayName} url={u.avatarUrl} size="sm" />
+        <span className="flex-1 truncate text-sm font-medium">{u.displayName}</span>
+        {at && <span className="text-xs text-slate-500">{when(at)}</span>}
+      </li>
+    );
+  };
+  const section = (title: string, items: React.ReactNode[]) =>
+    items.length > 0 && (
+      <div className="py-2">
+        <div className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{title} ({items.length})</div>
+        <ul>{items}</ul>
+      </div>
+    );
+  return (
+    <Modal open={!!message} onClose={onClose} title="Message info">
+      {message && (
+        <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <div className="truncate">{message.content || message.attachment?.name || 'Attachment'}</div>
+            <div className="mt-1 text-xs text-slate-500">Sent {when(message.createdAt)}</div>
+          </div>
+          {section('Read by', read.map((r) => row(r.userId, r.at)))}
+          {section('Delivered to', delivered.map((r) => row(r.userId, r.at)))}
+          {section('Not delivered yet', waiting.map((p) => row(p.id)))}
+        </div>
+      )}
+    </Modal>
   );
 }
 

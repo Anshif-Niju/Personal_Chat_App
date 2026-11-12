@@ -11,6 +11,7 @@ import {
   Download,
   FileText,
   Forward,
+  Info,
   Pencil,
   Phone,
   PhoneMissed,
@@ -40,6 +41,8 @@ export interface BubbleActions {
   onJumpTo: (id: string) => void;
   onOpenMedia: (m: Message) => void;
   onCopy: (m: Message) => void;
+  /** Opens "who has seen this message" (own messages only). */
+  onInfo?: (m: Message) => void;
 }
 
 interface Props extends BubbleActions {
@@ -380,6 +383,7 @@ function MessageBubbleImpl(props: Props) {
               { icon: Reply, label: 'Reply', fn: () => props.onReply(m), show: true },
               { icon: Smile, label: 'React', fn: () => setPicker(true), show: true },
               { icon: Copy, label: 'Copy', fn: () => props.onCopy(m), show: !!m.content },
+              { icon: Info, label: 'Message info', fn: () => props.onInfo?.(m), show: mine && !!props.onInfo },
               { icon: Forward, label: 'Forward', fn: () => props.onForward(m), show: true },
               { icon: isPinned ? PinOff : Pin, label: isPinned ? 'Unpin' : 'Pin', fn: () => props.onPin(m, !isPinned), show: true },
               { icon: Pencil, label: 'Edit', fn: () => props.onEdit(m), show: canEdit },
